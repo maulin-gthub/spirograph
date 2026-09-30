@@ -90,3 +90,30 @@ A small "drag around the circle to draw" hint shows until your first drag. Speci
 kit's rotation (so one full circle you trace = the wheel completing one lap), which is
 the simplest way to make the on-screen motion match your hand 1:1, the same way turning
 the wheel by hand does on a real kit.
+
+---
+
+## 2026-09-30 (bug fix)
+**Asked for:** You reported three problems on the live site: it always drew the same
+star shape, stopped after one loop, and "wasn't working at all" on desktop.
+
+**What I did:** Checked GitHub's build logs first to confirm the site really was
+running the latest code (it was — not a caching problem), then reproduced the issue
+myself in a test browser by dragging a pattern to completion and trying to draw again.
+Found the real bug: once a pattern finished (the pen dot turns gold), the app quietly
+refused to start any new drag — clicking or dragging again did nothing at all, no
+message, nothing. That's exactly what "stuck on one star" and "settings don't do
+anything" and "broken on desktop" would all look like from the outside, since once
+you're stuck, nothing you do afterwards — including changing sliders — seems to have
+any effect (even though the sliders themselves were actually always working fine
+underneath). Fixed it so that starting a new drag after a pattern is finished
+automatically clears the canvas and begins a fresh trace, the same as picking the pen
+back up on a real kit, instead of locking up. The "Auto" button had the identical bug
+and got the same fix. Re-tested by scripting the exact "finish a pattern, then try
+again" sequence in a test browser — confirmed a second pattern now draws correctly
+every time, on default settings and after changing sliders.
+
+**Problems/decisions:** This was a real bug in the interactive rebuild from the
+previous task, not a settings or caching issue. Verified against the live GitHub
+Pages deployment logs before debugging, to rule out "you're seeing an old version"
+first.

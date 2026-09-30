@@ -233,7 +233,11 @@
   }
 
   function onPointerDown(e) {
-    if (t >= totalT) return; // pattern already complete, nothing more to trace
+    if (t >= totalT) {
+      // pattern already complete: starting a new drag begins a fresh trace,
+      // same as picking the pen back up on a real kit
+      restart();
+    }
     autoMode = false;
     autoBtn.textContent = "▶";
     dragging = true;
@@ -293,7 +297,9 @@
   });
 
   autoBtn.addEventListener("click", () => {
-    if (t >= totalT) return;
+    if (t >= totalT) {
+      restart();
+    }
     autoMode = !autoMode;
     autoBtn.textContent = autoMode ? "⏸" : "▶";
     autoBtn.title = autoMode ? "Stop and draw by hand" : "Auto-draw for me";
