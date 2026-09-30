@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Spirograph</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>Spirograph</h1>
+      <div class="topbar-actions">
+        <button id="playPauseBtn" class="icon-btn" title="Pause/Play">⏸</button>
+        <button id="clearBtn" class="icon-btn" title="Clear">🗑</button>
+        <button id="panelToggleBtn" class="icon-btn panel-toggle" title="Controls">⚙</button>
+      </div>
+    </header>
+
+    <div class="content">
+    <main class="stage">
+      <canvas id="canvas"></canvas>
+    </main>
+
+    <section id="panel" class="panel">
+      <div class="panel-handle" id="panelHandle"></div>
+
+      <div class="control">
+        <label for="ringSize">Outer ring size <span class="val" id="ringSizeVal"></span></label>
+        <input type="range" id="ringSize" min="60" max="220" value="150" step="1" />
+      </div>
+
+      <div class="control">
+        <label for="wheelSize">Rolling wheel size <span class="val" id="wheelSizeVal"></span></label>
+        <input type="range" id="wheelSize" min="10" max="150" value="60" step="1" />
+      </div>
+
+      <div class="control">
+        <label for="penOffset">Pen hole distance <span class="val" id="penOffsetVal"></span></label>
+        <input type="range" id="penOffset" min="0" max="150" value="45" step="1" />
+      </div>
+
+      <div class="control">
+        <label for="speed">Drawing speed <span class="val" id="speedVal"></span></label>
+        <input type="range" id="speed" min="1" max="10" value="5" step="1" />
+      </div>
+
+      <div class="control">
+        <label for="lineWidth">Line thickness <span class="val" id="lineWidthVal"></span></label>
+        <input type="range" id="lineWidth" min="1" max="8" value="2" step="1" />
+      </div>
+
+      <div class="control inline">
+        <label for="colorMode">Color</label>
+        <div class="color-row">
+          <input type="color" id="colorPicker" value="#ff5da2" />
+          <label class="checkbox">
+            <input type="checkbox" id="rainbowMode" />
+            Rainbow
+          </label>
+        </div>
+      </div>
+
+      <div class="control inline">
+        <label for="bgColor">Background</label>
+        <input type="color" id="bgColor" value="#0f0f1a" />
+      </div>
+
+      <div class="control inline">
+        <label>Shape</label>
+        <div class="mode-row">
+          <button class="mode-btn active" data-mode="hypo">Inside (hypotrochoid)</button>
+          <button class="mode-btn" data-mode="epi">Outside (epitrochoid)</button>
+        </div>
+      </div>
+
+      <div class="panel-actions">
+        <button id="randomBtn" class="action-btn secondary">🎲 Random</button>
+        <button id="saveBtn" class="action-btn primary">⬇ Save</button>
+        <button id="shareBtn" class="action-btn primary">↗ Share</button>
+      </div>
+    </section>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
