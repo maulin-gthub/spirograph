@@ -1,9 +1,12 @@
 (() => {
   "use strict";
 
-  const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
+  const inkCanvas = document.getElementById("inkCanvas");
+  const guideCanvas = document.getElementById("guideCanvas");
+  const inkCtx = inkCanvas.getContext("2d");
+  const guideCtx = guideCanvas.getContext("2d");
   const stage = document.querySelector(".stage");
+  const dragHint = document.getElementById("dragHint");
 
   const controls = {
     ringSize: document.getElementById("ringSize"),
@@ -24,7 +27,7 @@
     lineWidth: document.getElementById("lineWidthVal"),
   };
 
-  const playPauseBtn = document.getElementById("playPauseBtn");
+  const autoBtn = document.getElementById("autoBtn");
   const clearBtn = document.getElementById("clearBtn");
   const panelToggleBtn = document.getElementById("panelToggleBtn");
   const panel = document.getElementById("panel");
@@ -34,14 +37,19 @@
   const shareBtn = document.getElementById("shareBtn");
   const modeButtons = document.querySelectorAll(".mode-btn");
 
-  let mode = "hypo"; // "hypo" = inside ring, "epi" = outside ring
-  let paused = false;
-  let t = 0;
-  let totalT = 0;
+  let mode = "hypo"; // "hypo" = wheel rolls inside the ring, "epi" = outside
+  let autoMode = false;
+  let t = 0; // current drawing progress (radians)
+  let unwrappedAngle = 0; // tracks the drag angle across multiple revolutions
+  let totalT = 0; // the drawing is complete once t reaches this
   let hue = 0;
   let dpr = Math.max(1, window.devicePixelRatio || 1);
   let cssWidth = 0;
   let cssHeight = 0;
+  let hintShown = true;
+
+  let dragging = false;
+  let lastPointerAngle = 0;
 
   function gcd(a, b) {
     a = Math.round(Math.abs(a));
@@ -60,35 +68,41 @@
     valLabels.lineWidth.textContent = controls.lineWidth.value;
   }
 
-  function resizeCanvas() {
+  function resizeCanvases() {
     const rect = stage.getBoundingClientRect();
     cssWidth = rect.width;
     cssHeight = rect.height;
     dpr = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width = Math.round(cssWidth * dpr);
-    canvas.height = Math.round(cssHeight * dpr);
-    canvas.style.width = cssWidth + "px";
-    canvas.style.height = cssHeight + "px";
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const [canvas, ctx] of [[inkCanvas, inkCtx], [guideCanvas, guideCtx]]) {
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
+      canvas.style.width = cssWidth + "px";
+      canvas.style.height = cssHeight + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     restart();
   }
 
   function fillBackground() {
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = controls.bgColor.value;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
+    inkCtx.save();
+    inkCtx.setTransform(1, 0, 0, 1, 0, 0);
+    inkCtx.fillStyle = controls.bgColor.value;
+    inkCtx.fillRect(0, 0, inkCanvas.width, inkCanvas.height);
+    inkCtx.restore();
   }
 
   function restart() {
     t = 0;
+    unwrappedAngle = 0;
     hue = 0;
     fillBackground();
     const R = Number(controls.ringSize.value);
     const r = Number(controls.wheelSize.value);
     const g = gcd(R, r);
     totalT = 2 * Math.PI * (r / g);
+    autoMode = false;
+    autoBtn.textContent = "▶";
+    autoBtn.title = "Auto-draw for me";
   }
 
   function point(tt) {
@@ -108,6 +122,13 @@
     return { x, y };
   }
 
+  function wheelCenter(tt) {
+    const R = Number(controls.ringSize.value);
+    const r = Number(controls.wheelSize.value);
+    const dist = mode === "hypo" ? R - r : R + r;
+    return { x: dist * Math.cos(tt), y: dist * Math.sin(tt) };
+  }
+
   function strokeColor() {
     if (controls.rainbowMode.checked) {
       return `hsl(${hue}, 85%, 62%)`;
@@ -115,32 +136,142 @@
     return controls.colorPicker.value;
   }
 
-  function tick() {
-    if (!paused && t < totalT) {
+  function drawInkSegment(fromT, toT) {
+    const cx = cssWidth / 2;
+    const cy = cssHeight / 2;
+    const a = point(fromT);
+    const b = point(toT);
+    inkCtx.lineWidth = Number(controls.lineWidth.value);
+    inkCtx.lineCap = "round";
+    inkCtx.lineJoin = "round";
+    inkCtx.strokeStyle = strokeColor();
+    inkCtx.beginPath();
+    inkCtx.moveTo(cx + a.x, cy + a.y);
+    inkCtx.lineTo(cx + b.x, cy + b.y);
+    inkCtx.stroke();
+    hue = (hue + 0.6) % 360;
+  }
+
+  function drawGuide() {
+    guideCtx.clearRect(0, 0, cssWidth, cssHeight);
+    const cx = cssWidth / 2;
+    const cy = cssHeight / 2;
+    const R = Number(controls.ringSize.value);
+    const r = Number(controls.wheelSize.value);
+
+    guideCtx.save();
+    guideCtx.translate(cx, cy);
+
+    // fixed outer ring
+    guideCtx.strokeStyle = "rgba(255,255,255,0.25)";
+    guideCtx.lineWidth = 1.5;
+    guideCtx.beginPath();
+    guideCtx.arc(0, 0, R, 0, Math.PI * 2);
+    guideCtx.stroke();
+
+    // rolling wheel + pen, only meaningful while a pattern is in progress
+    const wc = wheelCenter(t);
+    guideCtx.strokeStyle = "rgba(255,255,255,0.35)";
+    guideCtx.beginPath();
+    guideCtx.arc(wc.x, wc.y, r, 0, Math.PI * 2);
+    guideCtx.stroke();
+
+    const pen = point(t);
+    guideCtx.strokeStyle = "rgba(255,255,255,0.3)";
+    guideCtx.beginPath();
+    guideCtx.moveTo(wc.x, wc.y);
+    guideCtx.lineTo(pen.x, pen.y);
+    guideCtx.stroke();
+
+    const complete = t >= totalT - 0.001;
+    guideCtx.fillStyle = complete ? "#ffd35c" : strokeColor();
+    guideCtx.beginPath();
+    guideCtx.arc(pen.x, pen.y, complete ? 7 : 5, 0, Math.PI * 2);
+    guideCtx.fill();
+
+    guideCtx.restore();
+  }
+
+  function guideLoop() {
+    drawGuide();
+    requestAnimationFrame(guideLoop);
+  }
+
+  // --- Auto-draw playback (optional, for people who just want to watch) ---
+
+  function autoTick() {
+    if (autoMode && t < totalT) {
       const steps = Number(controls.speed.value) * 3;
       const dt = 0.02;
-      const cx = cssWidth / 2;
-      const cy = cssHeight / 2;
-
-      ctx.lineWidth = Number(controls.lineWidth.value);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      let prev = point(t);
       for (let i = 0; i < steps && t < totalT; i++) {
-        t += dt;
-        const cur = point(t);
-        ctx.strokeStyle = strokeColor();
-        ctx.beginPath();
-        ctx.moveTo(cx + prev.x, cy + prev.y);
-        ctx.lineTo(cx + cur.x, cy + cur.y);
-        ctx.stroke();
-        prev = cur;
-        hue = (hue + 0.6) % 360;
+        const from = t;
+        t = Math.min(t + dt, totalT);
+        drawInkSegment(from, t);
+      }
+      if (t >= totalT) {
+        autoMode = false;
+        autoBtn.textContent = "▶";
       }
     }
-    requestAnimationFrame(tick);
+    requestAnimationFrame(autoTick);
   }
+
+  // --- Hand-drawing via pointer drag ---
+
+  function pointerAngle(clientX, clientY) {
+    const rect = inkCanvas.getBoundingClientRect();
+    const cx = rect.left + cssWidth / 2;
+    const cy = rect.top + cssHeight / 2;
+    return Math.atan2(clientY - cy, clientX - cx);
+  }
+
+  function hideHint() {
+    if (hintShown) {
+      hintShown = false;
+      dragHint.classList.add("hidden");
+    }
+  }
+
+  function onPointerDown(e) {
+    if (t >= totalT) return; // pattern already complete, nothing more to trace
+    autoMode = false;
+    autoBtn.textContent = "▶";
+    dragging = true;
+    lastPointerAngle = pointerAngle(e.clientX, e.clientY);
+    inkCanvas.setPointerCapture(e.pointerId);
+    hideHint();
+  }
+
+  function onPointerMove(e) {
+    if (!dragging) return;
+    const angle = pointerAngle(e.clientX, e.clientY);
+    let delta = angle - lastPointerAngle;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    lastPointerAngle = angle;
+
+    const newUnwrapped = unwrappedAngle + delta;
+    const newT = Math.min(Math.max(newUnwrapped, 0), totalT);
+    if (newT !== t) {
+      drawInkSegment(t, newT);
+      t = newT;
+    }
+    unwrappedAngle = newUnwrapped < 0 ? 0 : newUnwrapped > totalT ? totalT : newUnwrapped;
+  }
+
+  function onPointerUp(e) {
+    dragging = false;
+    try {
+      inkCanvas.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  inkCanvas.addEventListener("pointerdown", onPointerDown);
+  inkCanvas.addEventListener("pointermove", onPointerMove);
+  inkCanvas.addEventListener("pointerup", onPointerUp);
+  inkCanvas.addEventListener("pointercancel", onPointerUp);
 
   // --- Controls wiring ---
 
@@ -148,12 +279,7 @@
     const evt = el.type === "range" ? "input" : "change";
     el.addEventListener(evt, () => {
       updateLabels();
-      if (el === controls.colorPicker || el === controls.rainbowMode || el === controls.bgColor) {
-        // color/background changes just restart the drawing fresh
-        restart();
-      } else {
-        restart();
-      }
+      restart();
     });
   });
 
@@ -166,9 +292,12 @@
     });
   });
 
-  playPauseBtn.addEventListener("click", () => {
-    paused = !paused;
-    playPauseBtn.textContent = paused ? "▶" : "⏸";
+  autoBtn.addEventListener("click", () => {
+    if (t >= totalT) return;
+    autoMode = !autoMode;
+    autoBtn.textContent = autoMode ? "⏸" : "▶";
+    autoBtn.title = autoMode ? "Stop and draw by hand" : "Auto-draw for me";
+    hideHint();
   });
 
   clearBtn.addEventListener("click", () => {
@@ -205,9 +334,6 @@
 
   // --- Mobile panel toggle ---
 
-  function openPanel() {
-    panel.classList.add("open");
-  }
   function closePanel() {
     panel.classList.remove("open");
   }
@@ -237,7 +363,7 @@
   // --- Save / Share ---
 
   function toBlob() {
-    return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    return new Promise((resolve) => inkCanvas.toBlob(resolve, "image/png"));
   }
 
   function toast(msg) {
@@ -305,8 +431,9 @@
 
   // --- Init ---
 
-  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("resize", resizeCanvases);
   updateLabels();
-  resizeCanvas();
-  requestAnimationFrame(tick);
+  resizeCanvases();
+  requestAnimationFrame(guideLoop);
+  requestAnimationFrame(autoTick);
 })();

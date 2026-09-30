@@ -55,3 +55,38 @@ fix, verified visually: the spirograph pattern draws and fills the space correct
 rainbow mode cycles colors, the mobile bottom panel opens/closes, and the Save button
 produces a real downloadable image. No backend or account system was added, by design,
 since it isn't needed for save/share to work.
+
+You also got it published at https://maulin-gthub.github.io/spirograph/ via GitHub
+Pages, after switching the repo from private to public (required on the free GitHub
+plan to use Pages).
+
+---
+
+## 2026-09-30 (later still)
+**Asked for:** You tried the published site and pointed out it wasn't actually
+interactive — it just auto-played a pre-set animation. You wanted it to work like a
+real spirograph kit, where you move the pen yourself and the pattern appears from your
+own hand movement.
+
+**What I did:** Rebuilt how drawing works. Now the app shows the ring and the small
+rolling wheel like a real kit, sitting still until you touch/click and drag your
+finger or mouse in a circle around it — the pattern only draws while you're moving,
+tracing along with your motion (drag one way to draw forward, the other way to undo).
+A small "drag around the circle to draw" hint shows until your first drag. Specifics:
+- Split the single drawing area into two see-through layers: one holds your permanent
+  drawing (never cleared except by the trash button), the other redraws the moving
+  ring/wheel/pen guide every instant so you always see where the "pen" currently is.
+- Added an "Auto" button (top right, the play icon) for anyone who just wants to watch
+  it finish automatically instead of dragging — it picks up from wherever you left off
+  by hand. The "Drawing speed" slider now only affects that auto mode.
+- The pen dot turns gold when a pattern is fully traced, as a little "you're done"
+  signal.
+- Tested by simulating a real drag motion in a test browser (both a desktop-sized and
+  a phone-sized screen) and screenshotting the result at each step, confirming the
+  line only appears while "dragging," follows the drag accurately, and Auto correctly
+  continues from the hand-drawn point.
+
+**Problems/decisions:** None outstanding. Chose to map your drag angle directly to the
+kit's rotation (so one full circle you trace = the wheel completing one lap), which is
+the simplest way to make the on-screen motion match your hand 1:1, the same way turning
+the wheel by hand does on a real kit.
